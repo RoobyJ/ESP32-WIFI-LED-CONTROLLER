@@ -4,6 +4,11 @@
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include "Adafruit_TSL2591.h"
+#include <FastLED.h>
+
+
+CRGB leds[60];
+
 
 // Set web server port number to 80
 WiFiServer server(80);
@@ -16,8 +21,7 @@ String header;
 // Auxiliar variables to store the current output state
 String output32State = "off";
 
-// Assign output variables to GPIO pins
-const int output32 = 32;
+uint8_t output32 = 32;
 
 // Current time
 unsigned long currentTime = millis();
@@ -27,18 +31,19 @@ unsigned long previousTime = 0;
 const long timeoutTime = 2000;
 const char* ssid = "ESP32-Access-Point";
 const char* password = "12345678";
+uint8_t brightnest = 75;
 
 
 void setup() {
-  M5.begin(true, false, true);
+  M5.begin(true, true, true);
   delay(50);
   M5.dis.fillpix(0x0000ff);
-  pinMode(output32, OUTPUT);
   if (tsl.begin()) {
     tsl.setGain(TSL2591_GAIN_MED);
     tsl.setTiming(TSL2591_INTEGRATIONTIME_300MS);
   }
 
+  FastLED.addLeds<WS2812, 32, GRB>(leds, 60);
   WiFi.softAP(ssid, password);
   server.begin();
   M5.dis.fillpix(0xff0000);
@@ -71,15 +76,21 @@ void loop() {
 
             // turns the GPIOs on and off
             if (header.indexOf("GET /on") >= 0) {
-              Serial.println("GPIO 32 on");
               output32State = "on";
               M5.dis.fillpix(0x33ff00);
-              digitalWrite(output32, HIGH);
+              setLedsOn();
             } else if (header.indexOf("GET /off") >= 0) {
-              Serial.println("GPIO 32 off");
               output32State = "off";
               M5.dis.fillpix(0xff0000);
-              digitalWrite(output32, LOW);
+              setLedsOff();
+            } else if (header.indexOf("GET /brightnest-add") >= 0) {
+              brightnest += 25;
+              FastLED.setBrightness(brightnest);
+              FastLED.show();
+            } else if (header.indexOf("GET /brightnest-substract") >= 0) {
+              brightnest -= 25;
+              FastLED.setBrightness(brightnest);
+              FastLED.show();
             }
 
             // Display the HTML web page
@@ -104,6 +115,17 @@ void loop() {
               client.println("<p><a href=\"/on\"><button class=\"button\">ON</button></a></p>");
             } else {
               client.println("<p><a href=\"/off\"><button class=\"button button2\">OFF</button></a></p>");
+            }
+            if (brightnest >= 255) {
+              client.println("<p><button class=\"button button2\">ON</button></p>");
+            } else {
+              client.println("<p><a href=\"/brightnest-add\"><button class=\"button\">Brightnest +</button></a></p>");
+            }
+
+            if (brightnest <= 1) {
+              client.println("<p><button class=\"button button2\">MIN</button></p>");
+            } else {
+              client.println("<p><a href=\"/brightnest-substract\"><button class=\"button\">Brightnest -</button></a></p>");
             }
 
             client.println("</body></html>");
@@ -131,7 +153,7 @@ void loop() {
 
 float getLux() {
   uint32_t tsl2591_data = tsl.getFullLuminosity();  // Get CH0 & CH1 data from the sensor (two 16-bit registers)
-
+  Serial.println(tsl2591_data);
   uint16_t ir, ir_visible;
   ir = tsl2591_data >> 16;             // extract infrared value
   ir_visible = tsl2591_data & 0xFFFF;  // extract visible + infrared value
@@ -139,4 +161,18 @@ float getLux() {
   float lux = tsl.calculateLux(ir_visible, ir);  // Calculate light lux value
   Serial.println(lux);
   return lux;
+}
+
+void setLedsOn() {
+  for (int i = 0; i <= 60; i++) {
+    leds[i] = CRGB(255, 0, 0);  // red
+  }
+  FastLED.show();
+}
+
+void setLedsOff() {
+  for (int i = 0; i <= 60; i++) {
+    leds[i] = CRGB(0, 0, 0);
+  }
+  FastLED.show();
 }
