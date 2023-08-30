@@ -1,38 +1,24 @@
 #include "M5Atom.h"
 #include <WiFi.h>
 #include <Arduino.h>
-#include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include "Adafruit_TSL2591.h"
 #include <FastLED.h>
 
-
-CRGB leds[60];
-
-
-// Set web server port number to 80
-WiFiServer server(80);
-
-Adafruit_TSL2591 tsl = Adafruit_TSL2591(2591);
-
-// Variable to store the HTTP request
-String header;
-
-// Auxiliar variables to store the current output state
-String output32State = "off";
-
-uint8_t output32 = 32;
-
-// Current time
-unsigned long currentTime = millis();
-// Previous time
-unsigned long previousTime = 0;
-// Define timeout time in milliseconds (example: 2000ms = 2s)
 const long timeoutTime = 2000;
 const char* ssid = "ESP32-Access-Point";
 const char* password = "12345678";
-uint8_t brightnest = 75;
+const int output32 = 32;
 
+CRGB leds[60];
+WiFiServer server(80);
+Adafruit_TSL2591 tsl = Adafruit_TSL2591(2591);
+String header;
+String output32State = "off";
+unsigned long currentTime = millis();
+unsigned long previousTime = 0;
+uint8_t brightnest = 75;
+CRGB color = CRGB(255, 0, 0);
 
 void setup() {
   M5.begin(true, true, true);
@@ -91,6 +77,21 @@ void loop() {
               brightnest -= 25;
               FastLED.setBrightness(brightnest);
               FastLED.show();
+            } else if (header.indexOf("GET /blue") >= 0) {
+              color = CRGB(0, 0, 255);
+              setLedsOn();
+            } else if (header.indexOf("GET /green") >= 0) {
+              color = CRGB(0, 255, 0);
+              setLedsOn();
+            } else if (header.indexOf("GET /red") >= 0) {
+              color = CRGB(255, 0, 0);
+              setLedsOn();
+            } else if (header.indexOf("GET /orange") >= 0) {
+              color = CRGB(255, 128, 0);
+              setLedsOn();
+            } else if (header.indexOf("GET /purple") >= 0) {
+              color = CRGB(153, 0, 255);
+              setLedsOn();
             }
 
             // Display the HTML web page
@@ -100,7 +101,8 @@ void loop() {
             // CSS to style the on/off buttons
             // Feel free to change the background-color and font-size attributes to fit your preferences
             client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
-            client.println(".button { background-color: #4CAF50; border: none; color: white; padding: 16px 40px;");
+            client.println(".button { background-color: #4CAF50; border: none; color: white; padding: 16px 40px;}");
+            client.println(".color-button { border: none; color: white; padding: 16px 16px;}");
             client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
             client.println(".button2 {background-color: #555555;}</style></head>");
 
@@ -110,6 +112,14 @@ void loop() {
             // Display current state, and ON/OFF buttons for GPIO 26
             client.println("<p>LED - State " + output32State + "</p>");
             client.println("<p>lux: " + String(getLux()) + "</p>");
+
+            // Color buttons
+            client.println("<a href=\"/blue\"><button class=\"color-button\" style=\"background-color: #0000FF\"></button></a>");
+            client.println("<a href=\"/green\"><button class=\"color-button\" style=\"background-color: #00FF00\"></button></a>");
+            client.println("<a href=\"/red\"><button class=\"color-button\" style=\"background-color: #FF0000\"></button></a>");
+            client.println("<a href=\"/orange\"><button class=\"color-button\" style=\"background-color: #FF8000\"></button></a>");
+            client.println("<a href=\"/purple\"><button class=\"color-button\" style=\"background-color: #9900FF\"></button></a>");
+
             // If the output26State is off, it displays the ON button
             if (output32State == "off") {
               client.println("<p><a href=\"/on\"><button class=\"button\">ON</button></a></p>");
@@ -146,26 +156,24 @@ void loop() {
     header = "";
     // Close the connection
     client.stop();
-    Serial.println("Client disconnected.");
-    Serial.println("");
   }
 }
 
 float getLux() {
   uint32_t tsl2591_data = tsl.getFullLuminosity();  // Get CH0 & CH1 data from the sensor (two 16-bit registers)
-  Serial.println(tsl2591_data);
+
   uint16_t ir, ir_visible;
   ir = tsl2591_data >> 16;             // extract infrared value
   ir_visible = tsl2591_data & 0xFFFF;  // extract visible + infrared value
 
   float lux = tsl.calculateLux(ir_visible, ir);  // Calculate light lux value
-  Serial.println(lux);
+
   return lux;
 }
 
 void setLedsOn() {
   for (int i = 0; i <= 60; i++) {
-    leds[i] = CRGB(255, 0, 0);  // red
+    leds[i] = color;
   }
   FastLED.show();
 }
